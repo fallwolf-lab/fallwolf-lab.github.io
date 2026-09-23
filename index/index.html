@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1f7a4d" />
+<title>玉米测产计算器 · 出籽率 / 亩株数 / 单产</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #eef3f0;
+    --card: #ffffff;
+    --ink: #16241d;
+    --muted: #6d8177;
+    --green: #1f7a4d;
+    --green-2: #2f9c63;
+    --green-soft: #e8f4ee;
+    --line: #dfe8e3;
+    --warn: #c0392b;
+    --warn-soft: #fdecea;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16, 40, 28, .05), 0 6px 20px rgba(16, 40, 28, .06);
+  }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    padding: 16px 14px calc(92px + env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+
+  /* ---------- 页头 ---------- */
+  header { padding: 4px 2px 14px; }
+  h1 { font-size: 21px; line-height: 1.3; margin: 0 0 6px; letter-spacing: .2px; }
+  h1 small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+  .units {
+    margin: 0; font-size: 12.5px; color: var(--muted);
+    background: var(--green-soft); border: 1px solid #d5e8dd;
+    border-radius: 10px; padding: 7px 10px;
+  }
+  .units b { color: var(--green); font-weight: 600; }
+
+  /* ---------- 卡片 ---------- */
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 14px 14px 6px; margin-bottom: 12px;
+  }
+  .card > h2 {
+    font-size: 13px; font-weight: 700; color: var(--green);
+    margin: 0 0 10px; letter-spacing: .6px;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .card > h2::before {
+    content: ""; width: 4px; height: 14px; border-radius: 2px;
+    background: linear-gradient(var(--green-2), var(--green));
+  }
+
+  /* ---------- 表单 ---------- */
+  .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 560px) { .grid.two { grid-template-columns: 1fr 1fr; } }
+  .field { padding-bottom: 8px; min-width: 0; }
+  .field label {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 6px;
+  }
+  .field label .u { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .box { position: relative; display: flex; align-items: center; }
+  input[type="text"], input[type="number"] {
+    width: 100%; min-height: 46px; padding: 10px 12px;
+    font: inherit; font-size: 16px; font-variant-numeric: tabular-nums;
+    color: var(--ink); background: #f8fbf9;
+    border: 1px solid var(--line); border-radius: 10px;
+    outline: none; appearance: none; -webkit-appearance: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  input::placeholder { color: #a9b8b0; }
+  input:focus {
+    border-color: var(--green-2); background: #fff;
+    box-shadow: 0 0 0 3px rgba(47, 156, 99, .15);
+  }
+  input.bad { border-color: var(--warn); background: var(--warn-soft); }
+  .box.suffix input { padding-right: 40px; }
+  .box .suffix-txt {
+    position: absolute; right: 12px; font-size: 14px; font-weight: 600;
+    color: var(--muted); pointer-events: none;
+  }
+  .hint { margin: 5px 2px 0; font-size: 12px; color: var(--muted); }
+  .hint.warn { color: var(--warn); }
+
+  /* ---------- 输入/结果 小徽标 ---------- */
+  .readout {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    min-height: 46px; padding: 11px 12px; border-radius: 10px;
+    background: var(--green-soft); border: 1px dashed #c6e3d4;
+  }
+  .readout .rv {
+    font-size: 19px; font-weight: 700; color: var(--green);
+    font-variant-numeric: tabular-nums;
+  }
+  .readout .ru { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+  /* ---------- 分段控件 ---------- */
+  .seg { display: inline-flex; background: #eef3f0; border-radius: 9px; padding: 3px; gap: 2px; }
+  .seg button {
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--muted);
+    border: 0; background: transparent; padding: 10px 16px; border-radius: 8px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .seg button[aria-pressed="true"] { background: #fff; color: var(--green); box-shadow: 0 1px 3px rgba(16,40,28,.12); }
+
+  /* ---------- 开关 ---------- */
+  .switch {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px; background: #f8fbf9;
+    border: 1px solid var(--line); margin: 0 0 10px; cursor: pointer;
+  }
+  .switch input { width: 20px; height: 20px; accent-color: var(--green); flex: 0 0 auto; }
+  .switch span { font-size: 13.5px; }
+  .switch small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* ---------- 结果面板 ---------- */
+  .results { padding: 16px 14px 14px; background: linear-gradient(160deg, #1f7a4d, #17603c); color: #fff; }
+  .results h2 { color: #fff; }
+  .results h2::before { background: rgba(255,255,255,.75); }
+  .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .hero .lab { font-size: 13px; opacity: .85; }
+  .hero .num {
+    font-size: 40px; line-height: 1.05; font-weight: 800;
+    font-variant-numeric: tabular-nums; letter-spacing: -.5px;
+  }
+  .hero .num.na { opacity: .5; font-size: 30px; }
+  .hero .unit { font-size: 14px; opacity: .9; margin-left: 4px; }
+  .sub {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px;
+    border-top: 1px solid rgba(255,255,255,.22); padding-top: 12px;
+  }
+  .sub div { min-width: 0; }
+  .sub .lab { font-size: 12px; opacity: .8; }
+  .sub .num { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* ---------- 公式明细 ---------- */
+  details { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 12px; }
+  details > summary {
+    list-style: none; cursor: pointer; padding: 13px 14px;
+    font-size: 13px; font-weight: 700; color: var(--green); letter-spacing: .4px;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::after { content: "＋"; float: right; color: var(--muted); font-weight: 600; }
+  details[open] > summary::after { content: "－"; }
+  .steps { padding: 0 14px 14px; font-size: 13px; }
+  .steps .row { padding: 9px 0; border-top: 1px solid var(--line); }
+  .steps .row:first-child { border-top: 0; }
+  .steps .k { color: var(--muted); font-size: 12px; }
+  .steps code {
+    display: block; margin-top: 4px; font-size: 12.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #24453a; background: #f4f8f6; border-radius: 8px;
+    padding: 7px 9px; overflow-x: auto; white-space: pre; -webkit-overflow-scrolling: touch;
+  }
+  .steps b { color: var(--green); }
+
+  /* ---------- 按钮 ---------- */
+  .actions { display: flex; gap: 10px; margin: 2px 0 10px; }
+  .actions button {
+    flex: 1; font: inherit; font-size: 14px; font-weight: 600;
+    min-height: 46px; border-radius: 11px; cursor: pointer;
+    border: 1px solid var(--line); background: #fff; color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .actions button.primary { background: var(--green); border-color: var(--green); color: #fff; }
+  .actions button:active { transform: translateY(1px); }
+  .toast {
+    position: fixed; left: 50%; transform: translate(-50%, 12px);
+    bottom: calc(90px + env(safe-area-inset-bottom));
+    background: rgba(22,36,29,.94); color: #fff; font-size: 13px;
+    padding: 9px 15px; border-radius: 999px; opacity: 0;
+    transition: opacity .2s, transform .2s; pointer-events: none; z-index: 40;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- 底部悬浮条 ---------- */
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,.94); backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    transform: translateY(110%); transition: transform .22s ease;
+  }
+  .bar.on { transform: translateY(0); }
+  .bar .item { min-width: 0; }
+  .bar .lab { font-size: 11.5px; color: var(--muted); }
+  .bar .num { font-size: 18px; font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+  .bar .num small { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 6px 0 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>玉米测产计算器<small>出籽率 · 亩株数 · 单产</small></h1>
+    <p class="units">
+      单位：面积 <b>亩</b> / <b>平方米（㎡）</b>　重量 <b>千克（kg）</b>　单产 <b>千克/亩（kg/亩）</b>
+    </p>
+  </header>
+
+  <!-- 播种规格 -->
+  <section class="card">
+    <h2>播种规格</h2>
+    <div class="grid two">
+      <div class="field">
+        <label for="rowSpace">行距 <span class="u" id="unitRow">厘米 cm</span></label>
+        <div class="box"><input id="rowSpace" type="text" inputmode="decimal" autocomplete="off" placeholder="如 60" /></div>
+      </div>
+      <div class="field">
+        <label for="plantSpace">株距 <span class="u" id="unitPlant">厘米 cm</span></label>
+        <div class="box"><input id="plantSpace" type="text" inputmode="decimal" autocomplete="off" placeholder="如 25" /></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>亩株数 <span class="u">按行距 × 株距折算</span></label>
+      <div class="readout"><span class="rv" id="outPlants">—</span><span class="ru">株/亩</span></div>
+    </div>
+    <p class="hint" style="margin-bottom:10px">
+      <span class="seg" id="unitSeg">
+        <button type="button" data-unit="cm" aria-pressed="true">厘米</button>
+        <button type="button" data-unit="m" aria-pressed="false">米</button>
+      </span>
+    </p>
+  </section>
+
+  <!-- 实收数据 -->
+  <section class="card">
+    <h2>实收数据</h2>
+    <div class="grid two">
+      <div class="field">
+        <label for="sampleWeight">实收样重 <span class="u">千克 kg</span></label>
+        <div class="box"><input id="sampleWeight" type="text" inputmode="decimal" autocomplete="off" placeholder="如 8.5" /></div>
+      </div>
+      <div class="field">
+        <label for="area">实收面积 <span class="u">平方米 ㎡</span></label>
+        <div class="box"><input id="area" type="text" inputmode="decimal" autocomplete="off" placeholder="默认 10" /></div>
+      </div>
+    </div>
+    <label class="switch" for="useArea" style="margin-bottom:10px">
+      <input id="useArea" type="checkbox" />
+      <span>按实收面积折算单产
+        <small>不勾选时按公式固定除以 10 ㎡（默认）；勾选后除以“实收面积”，面积填 10 时两者结果相同。</small>
+      </span>
+    </label>
+  </section>
+
+  <!-- 20穗考种 -->
+  <section class="card">
+    <h2>20 穗考种</h2>
+    <div class="grid two">
+      <div class="field">
+        <label for="weight20">20穗样重 <span class="u">千克 kg</span></label>
+        <div class="box"><input id="weight20" type="text" inputmode="decimal" autocomplete="off" placeholder="如 10" /></div>
+      </div>
+      <div class="field">
+        <label for="grain20">20穗粒重 <span class="u">千克 kg</span></label>
+        <div class="box"><input id="grain20" type="text" inputmode="decimal" autocomplete="off" placeholder="如 8.53" /></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>出籽率 <span class="u">由 20穗粒重 ÷ 20穗样重 自动计算</span></label>
+      <div class="readout"><span class="rv" id="outSeedRate">—</span><span class="ru">%</span></div>
+      <p class="hint" id="seedHint">出籽率 = 20穗粒重 ÷ 20穗样重，保留 4 位小数后换算成百分数。</p>
+    </div>
+  </section>
+
+  <!-- 含水率 -->
+  <section class="card">
+    <h2>含水率</h2>
+    <div class="grid two">
+      <div class="field">
+        <label for="moisture">含水率 <span class="u">输入数字即为百分数</span></label>
+        <div class="box suffix"><input id="moisture" type="text" inputmode="decimal" autocomplete="off" placeholder="如 12.3" /><span class="suffix-txt">%</span></div>
+        <p class="hint" id="moistureHint">输入 12.3 即表示 12.3%。</p>
+      </div>
+      <div class="field">
+        <label>标准水分折算系数 <span class="u">(1−含水率) ÷ (1−14%)</span></label>
+        <div class="readout"><span class="rv" id="outFactor">—</span><span class="ru">倍</span></div>
+      </div>
+    </div>
+    <p class="hint" style="margin-bottom:10px">国家玉米标准水分为 14%，单产按标准水分折算。</p>
+  </section>
+
+  <!-- 结果 -->
+  <section class="card results">
+    <h2>计算结果</h2>
+    <div class="hero">
+      <div>
+        <div class="lab">单产（标准水分 14%）</div>
+        <div><span class="num na" id="outYield">—</span><span class="unit">千克/亩</span></div>
+      </div>
+    </div>
+    <div class="sub">
+      <div><div class="lab">出籽率</div><div class="num" id="outSeedRate2">—</div></div>
+      <div><div class="lab">亩株数</div><div class="num" id="outPlants2">—</div></div>
+    </div>
+  </section>
+
+  <details id="detailBox">
+    <summary>计算过程与公式</summary>
+    <div class="steps" id="steps"></div>
+  </details>
+
+  <div class="actions">
+    <button type="button" class="primary" id="copyBtn">复制结果</button>
+    <button type="button" id="resetBtn">清空重填</button>
+  </div>
+
+  <footer>纯前端页面，数据只保存在本机浏览器，不联网上传。</footer>
+</div>
+
+<!-- 底部悬浮条 -->
+<div class="bar" id="bar">
+  <div class="item"><div class="lab">单产</div><div class="num"><span id="barYield">—</span><small>kg/亩</small></div></div>
+  <div class="item"><div class="lab">出籽率</div><div class="num"><span id="barRate">—</span></div></div>
+  <div class="item"><div class="lab">亩株数</div><div class="num"><span id="barPlants">—</span></div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var IDS = ["rowSpace", "plantSpace", "sampleWeight", "area", "weight20", "grain20", "moisture"];
+  var STORE = "corn-yield-calc-v1";
+  var STANDARD_WATER = 0.14;   // 标准含水率 14%
+  var MU_AREA = 666.7;         // 每亩 666.7 平方米
+  var FIXED_PLOT = 10;         // 公式固定取样面积 10 ㎡
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* 读数字：空值/非法 → null，允许带 % 或空格 */
+  function val(id) {
+    var raw = ($(id).value || "").replace(/[%％\s]/g, "");
+    if (raw === "") return null;
+    var n = Number(raw);
+    return isFinite(n) ? n : null;
+  }
+
+  /* Excel 风格 ROUND：四舍五入，保留 d 位小数 */
+  function xround(v, d) {
+    var f = Math.pow(10, d);
+    return (v < 0 ? -1 : 1) * Math.round(Math.abs(v) * f + 1e-9) / f;
+  }
+
+  function pct(v, d) { return v === null ? "—" : (v * 100).toFixed(d === undefined ? 2 : d) + "%"; }
+  function fixed(v, d) { return v === null ? "—" : v.toFixed(d); }
+  function int(v) { return v === null ? "—" : Math.round(v).toLocaleString("zh-CN"); }
+
+  var state = { unit: "cm" };
+
+  function spacingMeters() {
+    var f = state.unit === "m" ? 1 : 100;
+    var rs = val("rowSpace"), ps = val("plantSpace");
+    return {
+      rs: rs === null ? null : rs / f,
+      ps: ps === null ? null : ps / f,
+      rsRaw: rs,
+      psRaw: ps
+    };
+  }
+
+  function compute() {
+    var sp = spacingMeters();
+    var sw = val("sampleWeight");
+    var arRaw = val("area");
+    var ar = arRaw === null ? FIXED_PLOT : arRaw;
+    var useArea = $("useArea").checked;
+    var w20 = val("weight20");
+    var g20 = val("grain20");
+    var mo = val("moisture");
+
+    var r = { unitOk: state.unit, areaUsed: null, notes: [] };
+
+    /* 亩株数 = 666.7 ÷ (行距m × 株距m) */
+    var plants = null;
+    if (sp.rs > 0 && sp.ps > 0) {
+      plants = Math.round(MU_AREA / (sp.rs * sp.ps));
+    }
+
+    /* 出籽率 = ROUND(20穗粒重 / 20穗样重, 4) */
+    var rate = null;
+    if (w20 !== null && g20 !== null && w20 > 0) {
+      rate = xround(g20 / w20, 4);
+      if (rate > 1) r.notes.push("出籽率大于 100%，请检查“20穗粒重”与“20穗样重”是否填反。");
+    }
+
+    /* 水分折算系数 = (1 - 含水率) / (1 - 14%) */
+    var factor = null;
+    if (mo !== null) {
+      if (mo > 100) r.notes.push("含水率大于 100%，请检查输入。");
+      else factor = (1 - mo / 100) / (1 - STANDARD_WATER);
+    }
+
+    /* 单产 = ROUND(实收样重 / 10 × 666.7 × 出籽率 × (1-含水率) / (1-14%), 2) */
+    var divisor = useArea ? ar : FIXED_PLOT;
+    var yieldMu = null;
+    if (sw !== null && rate !== null && factor !== null && divisor > 0) {
+      yieldMu = xround(sw / divisor * MU_AREA * rate * factor, 2);
+    }
+    r.plants = plants;
+    r.rate = rate;
+    r.factor = factor;
+    r.yieldMu = yieldMu;
+    r.divisor = divisor;
+    r.perSqm = (sw !== null && divisor > 0) ? sw / divisor : null;
+    r.w20 = w20; r.g20 = g20; r.sw = sw; r.mo = mo; r.ar = arRaw;
+    return r;
+  }
+
+  function render() {
+    var r = compute();
+
+    /* 亩株数 */
+    $("outPlants").textContent = int(r.plants);
+    $("outPlants2").textContent = int(r.plants);
+    $("barPlants").textContent = int(r.plants);
+
+    /* 出籽率 */
+    var rateTxt = pct(r.rate, 2);
+    $("outSeedRate").textContent = rateTxt;
+    $("outSeedRate2").textContent = rateTxt;
+    $("barRate").textContent = rateTxt;
+
+    /* 折算系数 */
+    $("outFactor").textContent = fixed(r.factor, 5);
+
+    /* 单产 */
+    var yTxt = r.yieldMu === null ? "—" : r.yieldMu.toFixed(2);
+    var yEl = $("outYield");
+    yEl.textContent = yTxt;
+    yEl.classList.toggle("na", r.yieldMu === null);
+    $("barYield").textContent = yTxt;
+
+    /* 输入框状态 */
+    var unitM = state.unit === "m";
+    $("rowSpace").classList.toggle("bad", (val("rowSpace") || 0) <= 0);
+    $("plantSpace").classList.toggle("bad", (val("plantSpace") || 0) <= 0);
+    $("weight20").classList.toggle("bad", (val("weight20") || 0) <= 0);
+    $("grain20").classList.toggle("bad", (val("grain20") || 0) <= 0);
+    $("outSeedRate").style.color = (r.rate !== null && r.rate > 1) ? "#ffd7d2" : "";
+
+    /* 提示 */
+    var sh = $("seedHint"), notes = r.notes.slice();
+    if (r.rate === null) notes.push("填写“20穗样重”和“20穗粒重”后自动计算。");
+    sh.textContent = notes.join(" ");
+    sh.classList.toggle("warn", notes.length > 0 && r.rate !== null && r.rate > 1);
+
+    var mo = val("moisture");
+    var mh = $("moistureHint");
+    if (mo === null) mh.textContent = "输入 12.3 即表示 12.3%。";
+    else if (mo > 100) { mh.textContent = "含水率应不大于 100，当前 " + mo + "。"; mh.classList.add("warn"); }
+    else { mh.textContent = "已识别为 " + mo + "%"; mh.classList.remove("warn"); }
+
+    /* 底部悬浮条：有任何一项结果就显示 */
+    var any = (r.yieldMu !== null) || (r.rate !== null) || (r.plants !== null);
+    $("bar").classList.toggle("on", any);
+
+    renderSteps(r);
+    save();
+  }
+
+  function renderSteps(r) {
+    var L = [];
+    var rateExpr = (r.w20 !== null && r.g20 !== null && r.w20 > 0)
+      ? "出籽率 = 20穗粒重 ÷ 20穗样重 = " + r.g20 + " ÷ " + r.w20 + " = " +
+        (r.g20 / r.w20).toFixed(6) + "  →  ROUND(…,4) = " + fixed(r.rate, 4) + "  →  " + pct(r.rate, 2)
+      : "出籽率 = 20穗粒重 ÷ 20穗样重 = （待填写）";
+    L.push(["出籽率", "ROUND(20穗粒重 / 20穗样重, 4)", rateExpr]);
+
+    var u = state.unit === "m" ? 1 : 100;
+    var rs = val("rowSpace"), ps = val("plantSpace");
+    var pExpr = (rs > 0 && ps > 0)
+      ? "亩株数 = 666.7 ÷ (" + (rs / u) + " m × " + (ps / u) + " m) = " + int(r.plants) + " 株/亩"
+      : "亩株数 = 666.7 ÷ (行距 × 株距) = （待填写）";
+    L.push(["亩株数", "666.7 ÷（行距 m × 株距 m）", pExpr + (u === 100 ? "\n（行距、株距已由厘米换算为米）" : "")]);
+
+    var fExpr = (r.factor !== null)
+      ? "折算系数 = (1 − " + (r.mo / 100).toFixed(4) + ") ÷ (1 − 0.14) = " + r.factor.toFixed(5)
+      : "折算系数 = (1 − 含水率) ÷ (1 − 14%) = （待填写）";
+    L.push(["水分折算系数", "(1 − 含水率) ÷ (1 − 14%)", fExpr]);
+
+    var yExpr = (r.yieldMu !== null)
+      ? "单产 = " + r.sw + " ÷ " + r.divisor + " × 666.7 × " + fixed(r.rate, 4) + " × " + r.factor.toFixed(5) +
+        "\n     = " + r.yieldMu.toFixed(2) + " 千克/亩" +
+        (r.perSqm !== null ? "\n（实收部分折合 " + r.perSqm.toFixed(4) + " 千克/平方米）" : "")
+      : "单产 = 实收样重 ÷ " + (r.divisor || FIXED_PLOT) + " × 666.7 × 出籽率 × 折算系数 = （待填写）";
+    L.push(["单产", "ROUND(实收样重 / " + (r.divisor || FIXED_PLOT) + " × 666.7 × 出籽率 × (1−含水率) / (1−14%), 2)", yExpr]);
+
+    $("steps").innerHTML = L.map(function (it) {
+      return '<div class="row"><div class="k">' + it[0] + '　·　' + it[1] + '</div><code>' + it[2] + '</code></div>';
+    }).join("");
+  }
+
+  /* ---------- 单位切换 ---------- */
+  function setUnit(u) {
+    state.unit = u;
+    Array.prototype.forEach.call($("unitSeg").querySelectorAll("button"), function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-unit") === u));
+    });
+    var t = u === "m" ? "米 m" : "厘米 cm";
+    $("unitRow").textContent = t;
+    $("unitPlant").textContent = t;
+    $("rowSpace").placeholder = u === "m" ? "如 0.6" : "如 60";
+    $("plantSpace").placeholder = u === "m" ? "如 0.25" : "如 25";
+    render();
+  }
+
+  /* ---------- 本地保存 ---------- */
+  function save() {
+    try {
+      var o = { unit: state.unit, useArea: $("useArea").checked, v: {} };
+      IDS.forEach(function (id) { o.v[id] = $(id).value; });
+      localStorage.setItem(STORE, JSON.stringify(o));
+    } catch (e) { /* 隐私模式下忽略 */ }
+  }
+  function load() {
+    var o = null;
+    try { o = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { o = null; }
+    if (!o) { state.unit = "cm"; setUnit("cm"); return; }
+    state.unit = o.unit === "m" ? "m" : "cm";
+    if (o.v) IDS.forEach(function (id) { if (typeof o.v[id] === "string") $(id).value = o.v[id]; });
+    $("useArea").checked = !!o.useArea;
+    setUnit(state.unit);
+  }
+
+  /* ---------- 提示条 ---------- */
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("on"); }, 1600);
+  }
+
+  function summary() {
+    var r = compute();
+    return [
+      "玉米测产结果",
+      "行距：" + ($("rowSpace").value || "—") + (state.unit === "m" ? " m" : " cm"),
+      "株距：" + ($("plantSpace").value || "—") + (state.unit === "m" ? " m" : " cm"),
+      "亩株数：" + int(r.plants) + " 株/亩",
+      "实收样重：" + ($("sampleWeight").value || "—") + " kg",
+      "实收面积：" + ($("area").value || FIXED_PLOT) + " ㎡",
+      "20穗样重：" + ($("weight20").value || "—") + " kg",
+      "20穗粒重：" + ($("grain20").value || "—") + " kg",
+      "出籽率：" + pct(r.rate, 2),
+      "含水率：" + ($("moisture").value || "—") + "%",
+      "标准水分折算系数：" + fixed(r.factor, 5),
+      "单产：" + (r.yieldMu === null ? "—" : r.yieldMu.toFixed(2)) + " 千克/亩"
+    ].join("\n");
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  IDS.forEach(function (id) {
+    var el = $(id);
+    el.addEventListener("input", render);
+    el.addEventListener("change", render);
+  });
+  $("useArea").addEventListener("change", render);
+
+  $("unitSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-unit]");
+    if (b) setUnit(b.getAttribute("data-unit"));
+  });
+
+  $("copyBtn").addEventListener("click", function () {
+    var text = summary();
+    var done = function () { toast("结果已复制"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+    } else { fallback(text, done); }
+  });
+  function fallback(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (e) { toast("复制失败，请手动选择"); }
+    document.body.removeChild(ta);
+  }
+
+  $("resetBtn").addEventListener("click", function () {
+    IDS.forEach(function (id) { $(id).value = ""; });
+    $("useArea").checked = false;
+    try { localStorage.removeItem(STORE); } catch (e) {}
+    render();
+    toast("已清空");
+  });
+
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
